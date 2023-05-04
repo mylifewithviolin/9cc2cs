@@ -74,7 +74,7 @@ namespace CC9
             // 抽象構文木を下りながらコード生成
             gen(node);
 
-              // スタックトップに式全体の値が残っているはずなので
+            // スタックトップに式全体の値が残っているはずなので
             // それをRAXにロードして関数からの返り値とする
             Console.Write("  pop rax\n");
 
@@ -261,16 +261,30 @@ namespace CC9
         //       return node;
         //   }
         // }
+        // Node *expr() {
+        //   Node *node = mul();
+
+        //   for (;;) {
+        //     if (consume('+'))
+        //       node = new_binary(ND_ADD, node, mul());
+        //     else if (consume('-'))
+        //       node = new_binary(ND_SUB, node, mul());
+        //     else
+        //       return node;
+        //   }
+        // }
         static Node expr(List<Token> tokenList,ref int curIndex) {
             Node node = mul(tokenList,ref curIndex);
             Token token = getToken(tokenList,curIndex);//次のトークン
             for (;;) {
                 if (consume(token,"+",ref curIndex)){
-                    node = new_node(NodeKind.ND_ADD, node, mul(tokenList,ref curIndex));
+                    //node = new_node(NodeKind.ND_ADD, node, mul(tokenList,ref curIndex));
+                    node = new_binary(NodeKind.ND_ADD, node, mul(tokenList,ref curIndex));
                     token = getToken(tokenList,curIndex);//次のトークン
                     }
                 else if (consume(token,"-",ref curIndex)){
-                    node = new_node(NodeKind.ND_SUB, node, mul(tokenList,ref curIndex));
+                    //node = new_node(NodeKind.ND_SUB, node, mul(tokenList,ref curIndex));
+                    node = new_binary(NodeKind.ND_SUB, node, mul(tokenList,ref curIndex));
                     token = getToken(tokenList,curIndex);//次のトークン
                     }
                 else
@@ -290,21 +304,57 @@ namespace CC9
         //       return node;
         //   }
         // }
+        // mul = unary ("*" unary | "/" unary)*
+        // Node *mul() {
+        //   //Node *node = primary();
+        //   Node *node = unary();
+        //   for (;;) {
+        //     if (consume('*'))
+        //       node = new_binary(ND_MUL, node, unary());
+        //     else if (consume('/'))
+        //       node = new_binary(ND_DIV, node, unary());
+        //     else
+        //       return node;
+        //   }
+        // }
         static Node mul(List<Token> tokenList,ref int curIndex) {
-            Node node = primary(tokenList,ref curIndex);
+            //Node node = primary(tokenList,ref curIndex);
+            Node node = unary(tokenList,ref curIndex);
             Token token = getToken(tokenList,curIndex);//次のトークン
             for (;;) {
                 if (consume(token,"*",ref curIndex)){
-                    node = new_node(NodeKind.ND_MUL, node, primary(tokenList,ref curIndex));
+                    //node = new_node(NodeKind.ND_MUL, node, primary(tokenList,ref curIndex));
+                    node = new_binary(NodeKind.ND_MUL, node, primary(tokenList,ref curIndex));
                     token = getToken(tokenList,curIndex);//次のトークン
                 }
                 else if (consume(token,"/",ref curIndex)){
-                    node = new_node(NodeKind.ND_DIV, node, primary(tokenList,ref curIndex));
+                    //node = new_node(NodeKind.ND_DIV, node, primary(tokenList,ref curIndex));
+                    node = new_binary(NodeKind.ND_DIV, node, primary(tokenList,ref curIndex));
                     token = getToken(tokenList,curIndex);//次のトークン
                 }
                 else
                 return node;
             }
+        }
+        // unary = ("+" | "-")? unary
+        // //       | primary}
+        // Node *unary() {
+        //   if (consume('+'))
+        //     return unary();
+        //   if (consume('-'))
+        //     return new_binary(ND_SUB, new_num(0), unary());
+        //   return primary();
+        // }
+        static Node unary(List<Token> tokenList,ref int curIndex) { 
+                Token token = getToken(tokenList,curIndex);//次のトークン
+                if (consume(token,"+",ref curIndex)){
+                    return unary(tokenList,ref curIndex);
+                }
+                else if (consume(token,"-",ref curIndex)){
+                    return new_binary(NodeKind.ND_SUB,new_num(0), unary(tokenList,ref curIndex));
+                }
+                else
+                return primary(tokenList,ref curIndex);
         }
 
         // Node *primary() {
@@ -318,6 +368,15 @@ namespace CC9
         //   // そうでなければ数値のはず
         //   return new_node_num(expect_number());
         // }
+        // Node *primary() {
+        //  if (consume('(')) {
+        //         Node *node = expr();
+        //         expect(')');
+        //         return node;
+        //     }
+
+        //     return new_num(expect_number());
+        //  }
         static Node primary(List<Token> tokenList,ref int curIndex) {
             Token token = getToken(tokenList,curIndex);//次のトークン
             // 次のトークンが"("なら、"(" expr ")"のはず
@@ -330,7 +389,8 @@ namespace CC9
             }
 
             // そうでなければ数値のはず
-            return new_node_num(expect_number(token,ref curIndex));
+            //return new_node_num(expect_number(token,ref curIndex));
+            return new_num(expect_number(token,ref curIndex));
         }
 
         static Token getToken(List<Token> tokenList,int curIndex) {
@@ -345,9 +405,27 @@ namespace CC9
         //   node->rhs = rhs;
         //   return node;
         // }
-        static Node new_node(NodeKind kind, Node lhs, Node rhs) {
+        //         Node *new_node(NodeKind kind) {
+        //   Node *node = calloc(1, sizeof(Node));
+        //   node->kind = kind;
+        //   return node;
+        // }
+        // static Node new_node(NodeKind kind, Node lhs, Node rhs) {
+        static Node new_node(NodeKind kind) {
             Node node = new();
             node.kind = kind;
+            // node.lhs = lhs;
+            // node.rhs = rhs;
+            return node;
+        }
+        // Node *new_binary(NodeKind kind, Node *lhs, Node *rhs) {
+        //   Node *node = new_node(kind);
+        //   node->lhs = lhs;
+        //   node->rhs = rhs;
+        //   return node;
+        // }
+        static Node new_binary(NodeKind kind, Node lhs, Node rhs) {
+            Node node = new_node(kind);
             node.lhs = lhs;
             node.rhs = rhs;
             return node;
@@ -359,12 +437,24 @@ namespace CC9
         //   node->val = val;
         //   return node;
         // }
-        static Node new_node_num(int val) {
-            Node node = new();
-            node.kind = NodeKind.ND_NUM;
+        // static Node new_node_num(int val) {
+        //     Node node = new();
+        //     node.kind = NodeKind.ND_NUM;
+        //     node.val = val;
+        //     return node;
+        // }
+
+        // Node *new_num(int val) {
+        //   Node *node = new_node(ND_NUM);
+        //   node->val = val;
+        //   return node;
+        // }
+        static Node new_num(int val) {
+            Node node = new_node(NodeKind.ND_NUM);
             node.val = val;
             return node;
         }
+
         // エラーを報告するための関数
         // printfと同じ引数を取る
         // void error(char *fmt, ...) {
