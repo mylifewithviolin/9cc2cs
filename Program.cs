@@ -29,6 +29,10 @@ namespace CC9
             ND_SUB, // -
             ND_MUL, // *
             ND_DIV, // /
+            ND_EQ,  // ==
+            ND_NE,  // !=
+            ND_LT,  // <
+            ND_LE,  // <=
             ND_NUM, // 整数
         } ;
 
@@ -38,6 +42,8 @@ namespace CC9
             public  int next;    // 次の入力トークン
             public int val;        // kindがTK_NUMの場合、その数値
             public string? str;      // トークン文字列
+            public int len;        // トークンの長さ
+            
         };
 
         // 現在着目しているトークン
@@ -74,7 +80,7 @@ namespace CC9
             // 抽象構文木を下りながらコード生成
             gen(node);
 
-            // スタックトップに式全体の値が残っているはずなので
+              // スタックトップに式全体の値が残っているはずなので
             // それをRAXにロードして関数からの返り値とする
             Console.Write("  pop rax\n");
 
@@ -150,9 +156,23 @@ namespace CC9
                     i++;
                     continue;
                 }
+                // Multi-letter punctuator
+                if (iscomparisonhead(cs[i].ToString())) {
+                    if(i+1<cs.Length){
+                        var comp =cs[i].ToString()+cs[i+1].ToString();
+                        if (iscomparison(comp)) {
+                            cur = new_token(TokenKind.TK_RESERVED, next, comp,2);
+                            tokenList.Add(cur);
+                            next++;
+                            i+=2;
+                            continue;
+                        }
+                    }
+                }
 
+                // Single-letter punctuator
                 if (isarithmetic(cs[i].ToString())) {
-                    cur = new_token(TokenKind.TK_RESERVED, next, cs[i].ToString());
+                    cur = new_token(TokenKind.TK_RESERVED, next, cs[i].ToString(),1);
                     tokenList.Add(cur);
                     next++;
                     i++;
@@ -170,7 +190,7 @@ namespace CC9
                             if(i>=cs.Length)break;
                         }
                     }
-                    cur = new_token(TokenKind.TK_NUM,next, numberStr);
+                    cur = new_token(TokenKind.TK_NUM,next, numberStr,i);
                     cur.val = strtol(numberStr);
                     tokenList.Add(cur);
                     next++;
@@ -179,9 +199,10 @@ namespace CC9
 
                 //ここに進んだら例外
                 error("トークナイズできません");
+                i++;
             }
 
-            cur = new_token(TokenKind.TK_EOF, next, "");
+            cur = new_token(TokenKind.TK_EOF, next, "",0);
             tokenList.Add(cur);
             return tokenList;
         }
@@ -213,6 +234,26 @@ namespace CC9
         //     printf("  cqo\n");
         //     printf("  idiv rdi\n");
         //     break;
+        //        case ND_EQ:
+        //   printf("  cmp rax, rdi\n");
+        //   printf("  sete al\n");
+        //   printf("  movzb rax, al\n");
+        //   break;
+        // case ND_NE:
+        //   printf("  cmp rax, rdi\n");
+        //   printf("  setne al\n");
+        //   printf("  movzb rax, al\n");
+        //   break;
+        // case ND_LT:
+        //   printf("  cmp rax, rdi\n");
+        //   printf("  setl al\n");
+        //   printf("  movzb rax, al\n");
+        //   break;
+        // case ND_LE:
+        //   printf("  cmp rax, rdi\n");
+        //   printf("  setle al\n");
+        //   printf("  movzb rax, al\n");
+        //   break;
         //   }
 
         //   printf("  push rax\n");
@@ -242,6 +283,26 @@ namespace CC9
             case NodeKind.ND_DIV:
                 Console.Write("  cqo\n");
                 Console.Write("  idiv rdi\n");
+                break;
+            case NodeKind.ND_EQ:
+                Console.Write("  cmp rax, rdi\n");
+                Console.Write("  sete al\n");
+                Console.Write("  movzb rax, al\n");
+                break;
+            case NodeKind.ND_NE:
+                Console.Write("  cmp rax, rdi\n");
+                Console.Write("  setne al\n");
+                Console.Write("  movzb rax, al\n");
+                break;
+            case NodeKind.ND_LT:
+                Console.Write("  cmp rax, rdi\n");
+                Console.Write("  setl al\n");
+                Console.Write("  movzb rax, al\n");
+                break;
+            case NodeKind.ND_LE:
+                Console.Write("  cmp rax, rdi\n");
+                Console.Write("  setle al\n");
+                Console.Write("  movzb rax, al\n");
                 break;
             }
 
@@ -273,25 +334,103 @@ namespace CC9
         //       return node;
         //   }
         // }
-        static Node expr(List<Token> tokenList,ref int curIndex) {
-            Node node = mul(tokenList,ref curIndex);
-            Token token = getToken(tokenList,curIndex);//次のトークン
-            for (;;) {
-                if (consume(token,"+",ref curIndex)){
-                    //node = new_node(NodeKind.ND_ADD, node, mul(tokenList,ref curIndex));
-                    node = new_binary(NodeKind.ND_ADD, node, mul(tokenList,ref curIndex));
-                    token = getToken(tokenList,curIndex);//次のトークン
-                    }
-                else if (consume(token,"-",ref curIndex)){
-                    //node = new_node(NodeKind.ND_SUB, node, mul(tokenList,ref curIndex));
-                    node = new_binary(NodeKind.ND_SUB, node, mul(tokenList,ref curIndex));
-                    token = getToken(tokenList,curIndex);//次のトークン
-                    }
-                else
-                    return node;
-            }
-        }
+        // static Node expr(List<Token> tokenList,ref int curIndex) {
+        //     Node node = mul(tokenList,ref curIndex);
+        //     Token token = getToken(tokenList,curIndex);//次のトークン
+        //     for (;;) {
+        //         if (consume(token,"+",ref curIndex)){
+        //             //node = new_node(NodeKind.ND_ADD, node, mul(tokenList,ref curIndex));
+        //             node = new_binary(NodeKind.ND_ADD, node, mul(tokenList,ref curIndex));
+        //             token = getToken(tokenList,curIndex);//次のトークン
+        //             }
+        //         else if (consume(token,"-",ref curIndex)){
+        //             //node = new_node(NodeKind.ND_SUB, node, mul(tokenList,ref curIndex));
+        //             node = new_binary(NodeKind.ND_SUB, node, mul(tokenList,ref curIndex));
+        //             token = getToken(tokenList,curIndex);//次のトークン
+        //             }
+        //         else
+        //             return node;
+        //     }
+        // }
+    static Node expr(List<Token> tokenList,ref int curIndex) {
+        return equality(tokenList,ref curIndex);
+    }
 
+// equality = relational ("==" relational | "!=" relational)*
+    static Node equality(List<Token> tokenList,ref int curIndex) {
+        Node node = relational(tokenList,ref curIndex);
+        Token token = getToken(tokenList,curIndex);//次のトークン
+        for (;;) {
+            if (consume(token,"-=",ref curIndex)){
+                node = new_binary(NodeKind.ND_EQ, node, relational(tokenList,ref curIndex));
+                token = getToken(tokenList,curIndex);//次のトークン
+            }
+            else if (consume(token,"!=",ref curIndex)){
+                node = new_binary(NodeKind.ND_NE, node, relational(tokenList,ref curIndex));
+                token = getToken(tokenList,curIndex);//次のトークン
+            }
+            else
+            return node;
+        }
+    }
+
+    // relational = add ("<" add | "<=" add | ">" add | ">=" add)*
+    static Node relational(List<Token> tokenList,ref int curIndex) {
+        Node node = add(tokenList,ref curIndex);
+        Token token = getToken(tokenList,curIndex);//次のトークン
+        for (;;) {
+            if (consume(token,"<",ref curIndex)){
+                                node = new_binary(NodeKind.ND_LT, node, primary(tokenList,ref curIndex));
+                            token = getToken(tokenList,curIndex);//次のトークン
+            }
+            else if (consume(token,"<=",ref curIndex)){
+                node = new_binary(NodeKind.ND_LE, node, primary(tokenList,ref curIndex));
+                token = getToken(tokenList,curIndex);//次のトークン
+                }
+            else if (consume(token,">",ref curIndex)){
+                node = new_binary(NodeKind.ND_LT, add(tokenList,ref curIndex), node);
+                token = getToken(tokenList,curIndex);//次のトークン
+                }
+            else if (consume(token,">=",ref curIndex)){
+                node = new_binary(NodeKind.ND_LE, add(tokenList,ref curIndex), node);
+                token = getToken(tokenList,curIndex);//次のトークン
+                }
+            else
+      return node;
+  }
+}
+// add = mul ("+" mul | "-" mul)*
+// static Node add() {
+//   Node *node = mul();
+
+//   for (;;) {
+//     if (consume("+"))
+//       node = new_binary(ND_ADD, node, mul());
+
+//     else if (consume("-"))
+//       node = new_binary(ND_SUB, node, mul());
+//     else
+//       return node;
+//   }
+// }
+    static Node add(List<Token> tokenList,ref int curIndex) {
+        Node node = mul(tokenList,ref curIndex);
+        Token token = getToken(tokenList,curIndex);//次のトークン
+        for (;;) {
+            if (consume(token,"+",ref curIndex)){
+                //node = new_node(NodeKind.ND_ADD, node, mul(tokenList,ref curIndex));
+                node = new_binary(NodeKind.ND_ADD, node, mul(tokenList,ref curIndex));
+                token = getToken(tokenList,curIndex);//次のトークン
+                }
+            else if (consume(token,"-",ref curIndex)){
+                //node = new_node(NodeKind.ND_SUB, node, mul(tokenList,ref curIndex));
+                node = new_binary(NodeKind.ND_SUB, node, mul(tokenList,ref curIndex));
+                token = getToken(tokenList,curIndex);//次のトークン
+                }
+            else
+                return node;
+        }
+    }
         // Node *mul() {
         //   Node *node = primary();
 
@@ -456,7 +595,7 @@ namespace CC9
         }
 
         // エラーを報告するための関数
-        // printfと同じ引数を取る
+        // Console.Writeと同じ引数を取る
         // void error(char *fmt, ...) {
         //     va_list ap;
         //     va_start(ap, fmt);
@@ -475,8 +614,17 @@ namespace CC9
         // token = token->next;
         // return true;
         // }
+        //         bool consume(char *op) {
+        //   if (token->kind != TK_RESERVED || strlen(op) != token->len ||
+        //       memcmp(token->str, op, token->len))
+        //     return false;
+        //   token = token->next;
+        //   return true;
+        // }
         static bool consume(Token token,string op, ref int next) {
-            if (token.kind != TokenKind.TK_RESERVED || token.str != op)
+            //if (token.kind != TokenKind.TK_RESERVED || token.str != op)
+            if (token.kind != TokenKind.TK_RESERVED || op.Length  != token.len || 
+                    token.str != op)
                 return false;
             next = token.next;
             return true;
@@ -487,9 +635,17 @@ namespace CC9
         //     if (token->kind != TK_RESERVED || token->str[0] != op)
         //         error("'%c'ではありません", op);
         //     token = token->next;
+        //  }       
+        // void expect(char *op) {
+        //   if (token->kind != TK_RESERVED || strlen(op) != token->len ||
+        //       memcmp(token->str, op, token->len))
+        //     error_at(token->str, "expected \"%s\"", op);
+        //   token = token->next;
         // }
        static  void expect(Token token,string op, ref int next) {
-            if (token.kind != TokenKind.TK_RESERVED || token.str != op)
+            //if (token.kind != TokenKind.TK_RESERVED || token.str != op)
+            if (token.kind != TokenKind.TK_RESERVED || op.Length  != token.len || 
+                    token.str != op)
                 error($"'{op}'ではありません");
             next = token.next;
         }
@@ -503,6 +659,7 @@ namespace CC9
         //     token = token->next;
         //     return val;
         // }
+
         static int expect_number(Token token, ref int next) {
             if (token.kind != TokenKind.TK_NUM)
                 error("数ではありません");
@@ -523,10 +680,12 @@ namespace CC9
         //     cur->next = tok;
         //     return tok;
         // }
-        static Token new_token(TokenKind kind, int next, string str) {
+        //static Token new_token(TokenKind kind, int next, string str) {
+            static Token new_token(TokenKind kind, int next, string str, int len) {
             Token tok = new();
             tok.kind = kind;
             tok.str = str;
+            tok.len = len;
             tok.next = next;
             return tok;
         }
@@ -536,8 +695,26 @@ namespace CC9
         }
         static bool isarithmetic( string input )
         {
-             return( Regex.IsMatch( input,"[\\+\\-\\*\\/\\(\\)]" ) );
+             return( Regex.IsMatch( input,"[\\+\\-\\*\\/\\(\\)\\<\\>]" ) );
         }
+        static bool iscomparisonhead ( string input )
+        {
+             if(input =="="||input =="!"||input =="<"||input ==">"){
+                return true;
+             }else{
+                return false;
+             }       
+         }
+
+        static bool iscomparison ( string input )
+        {
+             if(input =="=="||input =="!="||input =="<="||input ==">="){
+                return true;
+             }else{
+                return false;
+             }       
+         }
+
         static bool isdigit( string input )
         {
              return( Regex.IsMatch( input, "[0-9]" ) );
