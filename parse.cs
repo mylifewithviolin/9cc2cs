@@ -1,23 +1,23 @@
-ï»¿using System; 
+using System; 
 using System.Text.RegularExpressions;
-using System.Linq;
+
+
 
 namespace CC9
 {
-    /// <summary>ãƒ—ãƒ­ã‚°ãƒ©ãƒ å‹</summary>
-    class Program
+    public partial class Program
     {
-        
+
         const string TOKEN_SYNBL_PLUS ="+";
         const string TOKEN_SYNBL_MINUS ="-";
-        // ãƒˆãƒ¼ã‚¯ãƒ³ã®ç¨®é¡
+        // ¥È¡¼¥¯¥ó¤Î¼ïÎà
         enum TokenKind{
-            TK_RESERVED, // è¨˜å·
-            TK_NUM,      // æ•´æ•°ãƒˆãƒ¼ã‚¯ãƒ³
-            TK_EOF,      // å…¥åŠ›ã®çµ‚ã‚ã‚Šã‚’è¡¨ã™ãƒˆãƒ¼ã‚¯ãƒ³
+            TK_RESERVED, // µ­¹æ
+            TK_NUM,      // À°¿ô¥È¡¼¥¯¥ó
+            TK_EOF,      // ÆşÎÏ¤Î½ª¤ï¤ê¤òÉ½¤¹¥È¡¼¥¯¥ó
         };
 
-        // æŠ½è±¡æ§‹æ–‡æœ¨ã®ãƒãƒ¼ãƒ‰ã®ç¨®é¡
+        // Ãê¾İ¹½Ê¸ÌÚ¤Î¥Î¡¼¥É¤Î¼ïÎà
         enum NodeKind{
             ND_ADD, // +
             ND_SUB, // -
@@ -27,64 +27,31 @@ namespace CC9
             ND_NE,  // !=
             ND_LT,  // <
             ND_LE,  // <=
-            ND_NUM, // æ•´æ•°
+            ND_NUM, // À°¿ô
         };
 
         class Token {
-            public TokenKind kind; // ãƒˆãƒ¼ã‚¯ãƒ³ã®å‹
-            public  int next;    // æ¬¡ã®å…¥åŠ›ãƒˆãƒ¼ã‚¯ãƒ³
-            public int val;        // kindãŒTK_NUMã®å ´åˆã€ãã®æ•°å€¤
-            public string? str;      // ãƒˆãƒ¼ã‚¯ãƒ³æ–‡å­—åˆ—
-            public int len;        // ãƒˆãƒ¼ã‚¯ãƒ³ã®é•·ã•
+            public TokenKind kind; // ¥È¡¼¥¯¥ó¤Î·¿
+            public  int next;    // ¼¡¤ÎÆşÎÏ¥È¡¼¥¯¥ó
+            public int val;        // kind¤¬TK_NUM¤Î¾ì¹ç¡¢¤½¤Î¿ôÃÍ
+            public string? str;      // ¥È¡¼¥¯¥óÊ¸»úÎó
+            public int len;        // ¥È¡¼¥¯¥ó¤ÎÄ¹¤µ
             
         };
     
-        // æŠ½è±¡æ§‹æ–‡æœ¨ã®ãƒãƒ¼ãƒ‰ã®å‹
+        // Ãê¾İ¹½Ê¸ÌÚ¤Î¥Î¡¼¥É¤Î·¿
         class  Node {
-            public NodeKind kind; // ãƒãƒ¼ãƒ‰ã®å‹
-            public Node? lhs;     // å·¦è¾º
-            public Node? rhs;     // å³è¾º
-            public int val;       // kindãŒND_NUMã®å ´åˆã®ã¿ä½¿ã†
+            public NodeKind kind; // ¥Î¡¼¥É¤Î·¿
+            public Node? lhs;     // º¸ÊÕ
+            public Node? rhs;     // ±¦ÊÕ
+            public int val;       // kind¤¬ND_NUM¤Î¾ì¹ç¤Î¤ß»È¤¦
         };
 
-        /// <summary>ãƒ¡ã‚¤ãƒ³</summary>
-        /// <param name="args">å¼•æ•°</param>
-        static int Main(string[] args)
-        {
-              if (args.Length != 2) {
-                    Console.Write( "å¼•æ•°ã®å€‹æ•°ãŒæ­£ã—ãã‚ã‚Šã¾ã›ã‚“\n");
-                    return 1;
-                }
-
-            // ãƒˆãƒ¼ã‚¯ãƒŠã‚¤ã‚ºã™ã‚‹
-            List<Token> tokenList = tokenize(args[1]);
-            // ç¾åœ¨ç€ç›®ã—ã¦ã„ã‚‹ãƒˆãƒ¼ã‚¯ãƒ³
-            int curIndex=0;
-            // ãƒ‘ãƒ¼ã‚¹ã™ã‚‹
-            Node node = expr(tokenList,ref curIndex);
-
-            // ã‚¢ã‚»ãƒ³ãƒ–ãƒªã®å‰åŠéƒ¨åˆ†ã‚’å‡ºåŠ›
-            Console.Write(".intel_syntax noprefix\n");
-            Console.Write(".globl main\n");
-            Console.Write("main:\n");
-
-            // æŠ½è±¡æ§‹æ–‡æœ¨ã‚’ä¸‹ã‚ŠãªãŒã‚‰ã‚³ãƒ¼ãƒ‰ç”Ÿæˆ
-            gen(node);
-
-              // ã‚¹ã‚¿ãƒƒã‚¯ãƒˆãƒƒãƒ—ã«å¼å…¨ä½“ã®å€¤ãŒæ®‹ã£ã¦ã„ã‚‹ã¯ãšãªã®ã§
-            // ãã‚Œã‚’RAXã«ãƒ­ãƒ¼ãƒ‰ã—ã¦é–¢æ•°ã‹ã‚‰ã®è¿”ã‚Šå€¤ã¨ã™ã‚‹
-            Console.Write("  pop rax\n");
-           
-            Console.Write("  ret\n");
-            return 0;
-        }
-        
-        
-        // å…¥åŠ›æ–‡å­—åˆ—pã‚’ãƒˆãƒ¼ã‚¯ãƒŠã‚¤ã‚ºã—ã¦ãã‚Œã‚’è¿”ã™
-        // å…¥åŠ›æ–‡å­—åˆ—ã‚’ãƒˆãƒ¼ã‚¯ãƒŠã‚¤ã‚ºã—ã¦ãƒˆãƒ¼ã‚¯ãƒ³ãƒªã‚¹ãƒˆã‚’è¿”ã™
-        /// <summary>ãƒˆãƒ¼ã‚¯ãƒŠã‚¤ã‚ºã™ã‚‹</summary>
-        /// <param name="p">å…¥åŠ›æ–‡å­—åˆ—</param>
-        /// <returns>ãƒˆãƒ¼ã‚¯ãƒ³ãƒªã‚¹ãƒˆ</returns>
+        // ÆşÎÏÊ¸»úÎóp¤ò¥È¡¼¥¯¥Ê¥¤¥º¤·¤Æ¤½¤ì¤òÊÖ¤¹
+        // ÆşÎÏÊ¸»úÎó¤ò¥È¡¼¥¯¥Ê¥¤¥º¤·¤Æ¥È¡¼¥¯¥ó¥ê¥¹¥È¤òÊÖ¤¹
+        /// <summary>¥È¡¼¥¯¥Ê¥¤¥º¤¹¤ë</summary>
+        /// <param name="p">ÆşÎÏÊ¸»úÎó</param>
+        /// <returns>¥È¡¼¥¯¥ó¥ê¥¹¥È</returns>
         static List<Token> tokenize(string p) {
             int next = 1;
             Token cur = new();
@@ -93,7 +60,7 @@ namespace CC9
             var cs = p.ToCharArray();
             int i= 0;
             while(i<cs.Length) {
-                // ç©ºç™½æ–‡å­—ã‚’ã‚¹ã‚­ãƒƒãƒ—
+                // ¶õÇòÊ¸»ú¤ò¥¹¥­¥Ã¥×
                 if (isspace(cs[i].ToString())) {
                     i++;
                     continue;
@@ -139,8 +106,8 @@ namespace CC9
                     continue;
                 }
 
-                //ã“ã“ã«é€²ã‚“ã ã‚‰ä¾‹å¤–
-                //Console.Write($"ãƒˆãƒ¼ã‚¯ãƒŠã‚¤ã‚ºã§ãã¾ã›ã‚“");
+                //¤³¤³¤Ë¿Ê¤ó¤À¤éÎã³°
+                //Console.Write($"¥È¡¼¥¯¥Ê¥¤¥º¤Ç¤­¤Ş¤»¤ó");
                 i++;
             }
 
@@ -149,167 +116,114 @@ namespace CC9
             return tokenList;
         }
 
-        // æŠ½è±¡æ§‹æ–‡æœ¨ã‚’ä¸‹ã‚ŠãªãŒã‚‰ã‚³ãƒ¼ãƒ‰ç”Ÿæˆ
-        /// <summary>ã‚³ãƒ¼ãƒ‰ç”Ÿæˆ</summary>
-        /// <param name="node">ãƒãƒ¼ãƒ‰</param>
-        static void gen(Node node) {
-            if (node.kind == NodeKind.ND_NUM) {
-                Console.Write($"  push {node.val}\n");
-                return;
-            }
 
-            gen(node.lhs);
-            gen(node.rhs);
-
-            Console.Write("  pop rdi\n");
-            Console.Write("  pop rax\n");
-
-            switch (node.kind) {
-            case NodeKind.ND_ADD:
-                Console.Write("  add rax, rdi\n");
-                break;
-            case NodeKind.ND_SUB:
-                Console.Write("  sub rax, rdi\n");
-                break;
-            case NodeKind.ND_MUL:
-                Console.Write("  imul rax, rdi\n");
-                break;
-            case NodeKind.ND_DIV:
-                Console.Write("  cqo\n");
-                Console.Write("  idiv rdi\n");
-                break;
-            case NodeKind.ND_EQ:
-                Console.Write("  cmp rax, rdi\n");
-                Console.Write("  sete al\n");
-                Console.Write("  movzb rax, al\n");
-                break;
-            case NodeKind.ND_NE:
-                Console.Write("  cmp rax, rdi\n");
-                Console.Write("  setne al\n");
-                Console.Write("  movzb rax, al\n");
-                break;
-            case NodeKind.ND_LT:
-                Console.Write("  cmp rax, rdi\n");
-                Console.Write("  setl al\n");
-                Console.Write("  movzb rax, al\n");
-                break;
-            case NodeKind.ND_LE:
-                Console.Write("  cmp rax, rdi\n");
-                Console.Write("  setle al\n");
-                Console.Write("  movzb rax, al\n");
-                break;
-            }
-
-            Console.Write("  push rax\n");
-        }
-        
-        /// <summary>å¼</summary>
-        /// <param name="tokenList">ãƒˆãƒ¼ã‚¯ãƒ³ãƒªã‚¹ãƒˆ</param>
-        /// <param name="curIndex">ç¾ç´¢å¼•</param>
-        /// <returns>ç­‰å¼</returns>
+        /// <summary>¼°</summary>
+        /// <param name="tokenList">¥È¡¼¥¯¥ó¥ê¥¹¥È</param>
+        /// <param name="curIndex">¸½º÷°ú</param>
+        /// <returns>Åù¼°</returns>
         static Node expr(List<Token> tokenList,ref int curIndex) {
             return equality(tokenList,ref curIndex);
         }
-        /// <summary>ç­‰å¼</summary>
-        /// <param name="tokenList">ãƒˆãƒ¼ã‚¯ãƒ³ãƒªã‚¹ãƒˆ</param>
-        /// <param name="curIndex">ç¾ç´¢å¼•</param>
-        /// <returns>ãƒãƒ¼ãƒ‰</returns>
+        /// <summary>Åù¼°</summary>
+        /// <param name="tokenList">¥È¡¼¥¯¥ó¥ê¥¹¥È</param>
+        /// <param name="curIndex">¸½º÷°ú</param>
+        /// <returns>¥Î¡¼¥É</returns>
         static Node equality(List<Token> tokenList,ref int curIndex) {
             Node node = relational(tokenList,ref curIndex);
-            Token token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+            Token token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
             for (;;) {
                 if (consume(token,"-=",ref curIndex)){
                     node = new_binary(NodeKind.ND_EQ, node, relational(tokenList,ref curIndex));
-                    token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+                    token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
                 }
                 else if (consume(token,"!=",ref curIndex)){
                     node = new_binary(NodeKind.ND_NE, node, relational(tokenList,ref curIndex));
-                    token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+                    token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
                 }
                 else
                 return node;
             }
         }
 
-        /// <summary>é–¢ä¿‚å¼</summary>
-        /// <param name="tokenList">ãƒˆãƒ¼ã‚¯ãƒ³ãƒªã‚¹ãƒˆ</param>
-        /// <param name="curIndex">ç¾ç´¢å¼•</param>
-        /// <returns>ãƒãƒ¼ãƒ‰</returns>
+        /// <summary>´Ø·¸¼°</summary>
+        /// <param name="tokenList">¥È¡¼¥¯¥ó¥ê¥¹¥È</param>
+        /// <param name="curIndex">¸½º÷°ú</param>
+        /// <returns>¥Î¡¼¥É</returns>
         static Node relational(List<Token> tokenList,ref int curIndex) {
             Node node = add(tokenList,ref curIndex);
-            Token token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+            Token token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
             for (;;) {
                 if (consume(token,"<",ref curIndex)){
                                     node = new_binary(NodeKind.ND_LT, node, primary(tokenList,ref curIndex));
-                                token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+                                token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
                 }
                 else if (consume(token,"<=",ref curIndex)){
                     node = new_binary(NodeKind.ND_LE, node, primary(tokenList,ref curIndex));
-                    token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+                    token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
                     }
                 else if (consume(token,">",ref curIndex)){
                     node = new_binary(NodeKind.ND_LT, add(tokenList,ref curIndex), node);
-                    token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+                    token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
                     }
                 else if (consume(token,">=",ref curIndex)){
                     node = new_binary(NodeKind.ND_LE, add(tokenList,ref curIndex), node);
-                    token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+                    token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
                     }
                 else
                 return node;
             }
         }
-        /// <summary>åŠ æ¸›å¼</summary>
-        /// <param name="tokenList">ãƒˆãƒ¼ã‚¯ãƒ³ãƒªã‚¹ãƒˆ</param>
-        /// <param name="curIndex">ç¾ç´¢å¼•</param>
-        /// <returns>ãƒãƒ¼ãƒ‰</returns>
+        /// <summary>²Ã¸º¼°</summary>
+        /// <param name="tokenList">¥È¡¼¥¯¥ó¥ê¥¹¥È</param>
+        /// <param name="curIndex">¸½º÷°ú</param>
+        /// <returns>¥Î¡¼¥É</returns>
         static Node add(List<Token> tokenList,ref int curIndex) {
             Node node = mul(tokenList,ref curIndex);
-            Token token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+            Token token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
             for (;;) {
                 if (consume(token,"+",ref curIndex)){
                     //node = new_node(NodeKind.ND_ADD, node, mul(tokenList,ref curIndex));
                     node = new_binary(NodeKind.ND_ADD, node, mul(tokenList,ref curIndex));
-                    token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+                    token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
                     }
                 else if (consume(token,"-",ref curIndex)){
                     //node = new_node(NodeKind.ND_SUB, node, mul(tokenList,ref curIndex));
                     node = new_binary(NodeKind.ND_SUB, node, mul(tokenList,ref curIndex));
-                    token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+                    token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
                     }
                 else
                     return node;
             }
         }
-        /// <summary>ä¹—é™¤å¼</summary>
-        /// <param name="tokenList">ãƒˆãƒ¼ã‚¯ãƒ³ãƒªã‚¹ãƒˆ</param>
-        /// <param name="curIndex">ç¾ç´¢å¼•</param>
-        /// <returns>ãƒãƒ¼ãƒ‰</returns>
+        /// <summary>¾è½ü¼°</summary>
+        /// <param name="tokenList">¥È¡¼¥¯¥ó¥ê¥¹¥È</param>
+        /// <param name="curIndex">¸½º÷°ú</param>
+        /// <returns>¥Î¡¼¥É</returns>
         static Node mul(List<Token> tokenList,ref int curIndex) {
             //Node node = primary(tokenList,ref curIndex);
             Node node = unary(tokenList,ref curIndex);
-            Token token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+            Token token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
             for (;;) {
                 if (consume(token,"*",ref curIndex)){
                     //node = new_node(NodeKind.ND_MUL, node, primary(tokenList,ref curIndex));
                     node = new_binary(NodeKind.ND_MUL, node, primary(tokenList,ref curIndex));
-                    token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+                    token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
                 }
                 else if (consume(token,"/",ref curIndex)){
                     //node = new_node(NodeKind.ND_DIV, node, primary(tokenList,ref curIndex));
                     node = new_binary(NodeKind.ND_DIV, node, primary(tokenList,ref curIndex));
-                    token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+                    token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
                 }
                 else
                 return node;
             }
         }
-        /// <summary>å˜é …å¼</summary>
-        /// <param name="tokenList">ãƒˆãƒ¼ã‚¯ãƒ³ãƒªã‚¹ãƒˆ</param>
-        /// <param name="curIndex">ç¾ç´¢å¼•</param>
-        /// <returns>ãƒãƒ¼ãƒ‰</returns>
+        /// <summary>Ã±¹à¼°</summary>
+        /// <param name="tokenList">¥È¡¼¥¯¥ó¥ê¥¹¥È</param>
+        /// <param name="curIndex">¸½º÷°ú</param>
+        /// <returns>¥Î¡¼¥É</returns>
         static Node unary(List<Token> tokenList,ref int curIndex) { 
-                Token token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+                Token token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
                 if (consume(token,"+",ref curIndex)){
                     return unary(tokenList,ref curIndex);
                 }
@@ -319,34 +233,34 @@ namespace CC9
                 else
                 return primary(tokenList,ref curIndex);
         }
-        /// <summary>å„ªå…ˆé †ä½</summary>
-        /// <param name="tokenList">ãƒˆãƒ¼ã‚¯ãƒ³ãƒªã‚¹ãƒˆ</param>
-        /// <param name="curIndex">ç¾ç´¢å¼•</param>
-        /// <returns>ãƒãƒ¼ãƒ‰</returns>
+        /// <summary>Í¥Àè½ç°Ì</summary>
+        /// <param name="tokenList">¥È¡¼¥¯¥ó¥ê¥¹¥È</param>
+        /// <param name="curIndex">¸½º÷°ú</param>
+        /// <returns>¥Î¡¼¥É</returns>
         static Node primary(List<Token> tokenList,ref int curIndex) {
-            Token token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
-            // æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³ãŒ"("ãªã‚‰ã€"(" expr ")"ã®ã¯ãš
+            Token token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
+            // ¼¡¤Î¥È¡¼¥¯¥ó¤¬"("¤Ê¤é¡¢"(" expr ")"¤Î¤Ï¤º
             if (consume(token,"(",ref curIndex)) {
                 Node node = expr(tokenList,ref curIndex);
-                token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+                token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
                 expect(token,")",ref curIndex);
-                token = getToken(tokenList,curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+                token = getToken(tokenList,curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
                 return node;
             }
 
-            // ãã†ã§ãªã‘ã‚Œã°æ•°å€¤ã®ã¯ãš
+            // ¤½¤¦¤Ç¤Ê¤±¤ì¤Ğ¿ôÃÍ¤Î¤Ï¤º
             //return new_node_num(expect_number(token,ref curIndex));
             return new_num(expect_number(token,ref curIndex));
         }
 
             static Token getToken(List<Token> tokenList,int curIndex) {
                 if(curIndex>=tokenList.Count) return new Token();
-                Token token = tokenList.ElementAt(curIndex);//æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³
+                Token token = tokenList.ElementAt(curIndex);//¼¡¤Î¥È¡¼¥¯¥ó
                 return token;
             }
-            /// <summary>æ–°ã—ã„ãƒãƒ¼ãƒ‰</summary>
-            /// <param name="kind">ç¨®é¡</param>
-            /// <returns>ãƒãƒ¼ãƒ‰</returns>
+            /// <summary>¿·¤·¤¤¥Î¡¼¥É</summary>
+            /// <param name="kind">¼ïÎà</param>
+            /// <returns>¥Î¡¼¥É</returns>
             static Node new_node(NodeKind kind) {
                 Node node = new();
                 node.kind = kind;
@@ -354,10 +268,10 @@ namespace CC9
                 // node.rhs = rhs;
                 return node;
             }
-            /// <summary>æ–°ã—ã„äºŒåˆ†æœ¨</summary>
-            /// <param name="kind">ç¨®é¡</param>
-            /// <param name="lhs">å·¦è¾º</param>
-            /// <param name="rhs">å³è¾º</param>
+            /// <summary>¿·¤·¤¤ÆóÊ¬ÌÚ</summary>
+            /// <param name="kind">¼ïÎà</param>
+            /// <param name="lhs">º¸ÊÕ</param>
+            /// <param name="rhs">±¦ÊÕ</param>
             /// <returns>node</returns>
             static Node new_binary(NodeKind kind, Node lhs, Node rhs) {
                 Node node = new_node(kind);
@@ -374,12 +288,12 @@ namespace CC9
             }
 
 
-            // æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³ãŒæœŸå¾…ã—ã¦ã„ã‚‹è¨˜å·ã®ã¨ãã«ã¯ã€ãƒˆãƒ¼ã‚¯ãƒ³ã‚’1ã¤èª­ã¿é€²ã‚ã¦
-            // çœŸã‚’è¿”ã™ã€‚ãã‚Œä»¥å¤–ã®å ´åˆã«ã¯å½ã‚’è¿”ã™ã€‚
-            /// <summary>ä½¿ç”¨ã™ã‚‹</summary>
-            /// <param name="token">ãƒˆãƒ¼ã‚¯ãƒ³</param>
-            /// <param name="op">è¨˜å·æ–‡å­—</param>
-            /// <param name="next">æ¬¡ç´¢å¼•</param>
+            // ¼¡¤Î¥È¡¼¥¯¥ó¤¬´üÂÔ¤·¤Æ¤¤¤ëµ­¹æ¤Î¤È¤­¤Ë¤Ï¡¢¥È¡¼¥¯¥ó¤ò1¤ÄÆÉ¤ß¿Ê¤á¤Æ
+            // ¿¿¤òÊÖ¤¹¡£¤½¤ì°Ê³°¤Î¾ì¹ç¤Ë¤Ïµ¶¤òÊÖ¤¹¡£
+            /// <summary>»ÈÍÑ¤¹¤ë</summary>
+            /// <param name="token">¥È¡¼¥¯¥ó</param>
+            /// <param name="op">µ­¹æÊ¸»ú</param>
+            /// <param name="next">¼¡º÷°ú</param>
             /// <returns>bool</returns>
             static bool consume(Token token,string op, ref int next) {
                 //if (token.kind != TokenKind.TK_RESERVED || token.str != op)
@@ -389,32 +303,32 @@ namespace CC9
                 next = token.next;
                 return true;
             }
-            // æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³ãŒæœŸå¾…ã—ã¦ã„ã‚‹è¨˜å·ã®ã¨ãã«ã¯ã€ãƒˆãƒ¼ã‚¯ãƒ³ã‚’1ã¤èª­ã¿é€²ã‚ã‚‹ã€‚
-            // ãã‚Œä»¥å¤–ã®å ´åˆã«ã¯ã‚¨ãƒ©ãƒ¼ã‚’å ±å‘Šã™ã‚‹ã€‚
-            /// <summary>äºˆæƒ³ã™ã‚‹</summary>
-            /// <param name="token">ãƒˆãƒ¼ã‚¯ãƒ³</param>
-            /// <param name="op">è¨˜å·æ–‡å­—</param>
-            /// <param name="next">æ¬¡ç´¢å¼•</param>
+            // ¼¡¤Î¥È¡¼¥¯¥ó¤¬´üÂÔ¤·¤Æ¤¤¤ëµ­¹æ¤Î¤È¤­¤Ë¤Ï¡¢¥È¡¼¥¯¥ó¤ò1¤ÄÆÉ¤ß¿Ê¤á¤ë¡£
+            // ¤½¤ì°Ê³°¤Î¾ì¹ç¤Ë¤Ï¥¨¥é¡¼¤òÊó¹ğ¤¹¤ë¡£
+            /// <summary>Í½ÁÛ¤¹¤ë</summary>
+            /// <param name="token">¥È¡¼¥¯¥ó</param>
+            /// <param name="op">µ­¹æÊ¸»ú</param>
+            /// <param name="next">¼¡º÷°ú</param>
             /// <returns>bool</returns>
         static  void expect(Token token,string op, ref int next) {
             if (token.kind != TokenKind.TK_RESERVED || op.Length  != token.len ||  token.str != op){
-                       // Console.WriteLine($"{op}ã§ã¯ã‚ã‚Šã¾ã›ã‚“");
+                       // Console.WriteLine($"{op}¤Ç¤Ï¤¢¤ê¤Ş¤»¤ó");
                     }
             next = token.next;
         }
 
-        // æ¬¡ã®ãƒˆãƒ¼ã‚¯ãƒ³ãŒæ•°å€¤ã®å ´åˆã€ãƒˆãƒ¼ã‚¯ãƒ³ã‚’1ã¤èª­ã¿é€²ã‚ã¦ãã®æ•°å€¤ã‚’è¿”ã™ã€‚
-        // ãã‚Œä»¥å¤–ã®å ´åˆã«ã¯ã‚¨ãƒ©ãƒ¼ã‚’å ±å‘Šã™ã‚‹ã€‚
+        // ¼¡¤Î¥È¡¼¥¯¥ó¤¬¿ôÃÍ¤Î¾ì¹ç¡¢¥È¡¼¥¯¥ó¤ò1¤ÄÆÉ¤ß¿Ê¤á¤Æ¤½¤Î¿ôÃÍ¤òÊÖ¤¹¡£
+        // ¤½¤ì°Ê³°¤Î¾ì¹ç¤Ë¤Ï¥¨¥é¡¼¤òÊó¹ğ¤¹¤ë¡£
         static int expect_number(Token token, ref int next) {
             if (token.kind != TokenKind.TK_NUM){
-                //Console.WriteLine($"æ•°ã§ã¯ã‚ã‚Šã¾ã›ã‚“");
+                //Console.WriteLine($"¿ô¤Ç¤Ï¤¢¤ê¤Ş¤»¤ó");
             }
             int val = token.val;
             next = token.next;
             return val;
         }
 
-        // ã‚¨ãƒ©ãƒ¼ã‚’å ±å‘Šã™ã‚‹ãŸã‚ã®é–¢æ•°
+        // ¥¨¥é¡¼¤òÊó¹ğ¤¹¤ë¤¿¤á¤Î´Ø¿ô
         static void error(string fmt) {
             Console.WriteLine(fmt);
         }
@@ -422,7 +336,7 @@ namespace CC9
             return token.kind == TokenKind.TK_EOF;
         }
 
-        // æ–°ã—ã„ãƒˆãƒ¼ã‚¯ãƒ³ã‚’ä½œæˆã—ã¦curã«ç¹‹ã’ã‚‹
+        // ¿·¤·¤¤¥È¡¼¥¯¥ó¤òºîÀ®¤·¤Æcur¤Ë·Ò¤²¤ë
             static Token new_token(TokenKind kind, int next, string str, int len) {
             Token tok = new();
             tok.kind = kind;
@@ -465,5 +379,6 @@ namespace CC9
             return  int.Parse(str);
         }
 
+            
     }
 }
