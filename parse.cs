@@ -10,12 +10,6 @@ namespace CC9
 
         const string TOKEN_SYNBL_PLUS ="+";
         const string TOKEN_SYNBL_MINUS ="-";
-        // トークンの種類
-        enum TokenKind{
-            TK_RESERVED, // 記号
-            TK_NUM,      // 整数トークン
-            TK_EOF,      // 入力の終わりを表すトークン
-        };
 
         // 抽象構文木のノードの種類
         enum NodeKind{
@@ -23,21 +17,18 @@ namespace CC9
             ND_SUB, // -
             ND_MUL, // *
             ND_DIV, // /
+            /// <summary>代入等号</summary>
+            ND_ASSIGN, // =
+            /// <summary>ローカル変数</summary>
+            ND_LVAR,   // 1文字変数
             ND_EQ,  // ==
             ND_NE,  // !=
             ND_LT,  // <
             ND_LE,  // <=
+            ND_EXPR_STMT, // ; Expression statement
             ND_NUM, // 整数
         };
 
-        class Token {
-            public TokenKind kind; // トークンの型
-            public  int next;    // 次の入力トークン
-            public int val;        // kindがTK_NUMの場合、その数値
-            public string? str;      // トークン文字列
-            public int len;        // トークンの長さ
-            
-        };
     
         // 抽象構文木のノードの型
         class  Node {
@@ -45,85 +36,54 @@ namespace CC9
             public Node? lhs;     // 左辺
             public Node? rhs;     // 右辺
             public int val;       // kindがND_NUMの場合のみ使う
+            /// <summary>オフセット値</summary>
+            public int offset;    // kindがND_LVARの場合のみ使う
         };
 
-        // 入力文字列pをトークナイズしてそれを返す
-        // 入力文字列をトークナイズしてトークンリストを返す
-        /// <summary>トークナイズする</summary>
-        /// <param name="p">入力文字列</param>
-        /// <returns>トークンリスト</returns>
-        static List<Token> tokenize(string p) {
-            int next = 1;
-            Token cur = new();
-            List<Token> tokenList =new List<Token>();
-
-            var cs = p.ToCharArray();
-            int i= 0;
-            while(i<cs.Length) {
-                // 空白文字をスキップ
-                if (isspace(cs[i].ToString())) {
-                    i++;
-                    continue;
-                }
-                // Multi-letter punctuator
-                if (iscomparisonhead(cs[i].ToString())) {
-                    if(i+1<cs.Length){
-                        var comp =cs[i].ToString()+cs[i+1].ToString();
-                        if (iscomparison(comp)) {
-                            cur = new_token(TokenKind.TK_RESERVED, next, comp,2);
-                            tokenList.Add(cur);
-                            next++;
-                            i+=2;
-                            continue;
-                        }
-                    }
-                }
-
-                // Single-letter punctuator
-                if (isarithmetic(cs[i].ToString())) {
-                    cur = new_token(TokenKind.TK_RESERVED, next, cs[i].ToString(),1);
-                    tokenList.Add(cur);
-                    next++;
-                    i++;
-                    continue;
-                }
-
-                if (isdigit(cs[i].ToString())) {
         
-                    string numberStr = cs[i].ToString();
-                    i++;
-                    if(i<cs.Length){
-                        while(isdigit(cs[i].ToString())) {
-                            numberStr+= cs[i].ToString();
-                            i++;
-                            if(i>=cs.Length)break;
-                        }
-                    }
-                    cur = new_token(TokenKind.TK_NUM,next, numberStr,i);
-                    cur.val = strtol(numberStr);
-                    tokenList.Add(cur);
-                    next++;
-                    continue;
-                }
-
-                //ここに進んだら例外
-                //Console.Write($"トークナイズできません");
-                i++;
+        /// <summary>手続全体</summary>
+        /// <param name="codeList">コードリスト</param>
+        /// <param name="tokenList">トークンリスト</param>
+        /// <param name="curIndex">現索引</param>
+        static void program(List<Node> codeList,List<Token> tokenList,ref int curIndex){
+            Token token = getToken(tokenList,curIndex);//次のトークン
+            while (!at_eof(token)){
+                Node code = stmt(tokenList,ref curIndex);
+                codeList.Add(code);
+                token = getToken(tokenList,curIndex);//次のトークン
             }
-
-            cur = new_token(TokenKind.TK_EOF, next, "",0);
-            tokenList.Add(cur);
-            return tokenList;
         }
-
-
+        /// <summary>構文</summary>
+        /// <param name="tokenList">トークンリスト</param>
+        /// <param name="curIndex">現索引</param>
+        /// <returns>ノード型</returns>
+        static Node stmt(List<Token> tokenList,ref int curIndex){
+            Node node = expr(tokenList,ref curIndex);
+            Token token = getToken(tokenList,curIndex);//次のトークン
+            expect(token,";",ref curIndex);
+            return node;
+        }
         /// <summary>式</summary>
         /// <param name="tokenList">トークンリスト</param>
         /// <param name="curIndex">現索引</param>
         /// <returns>等式</returns>
         static Node expr(List<Token> tokenList,ref int curIndex) {
-            return equality(tokenList,ref curIndex);
+            return assign(tokenList,ref curIndex);
         }
+
+        /// <summary>代入式</summary>
+        /// <param name="tokenList">トークンリスト</param>
+        /// <param name="curIndex">現索引</param>
+        /// <returns>ノード型</returns>
+        static Node assign(List<Token> tokenList,ref int curIndex) {
+            Node node = equality(tokenList,ref curIndex);
+            Token token = getToken(tokenList,curIndex);//次のトークン
+            if (consume(token,"=",ref curIndex)){
+                node = new_binary(NodeKind.ND_ASSIGN, node, assign(tokenList,ref curIndex));
+            }
+            return node;
+        }
+
         /// <summary>等式</summary>
         /// <param name="tokenList">トークンリスト</param>
         /// <param name="curIndex">現索引</param>
@@ -248,6 +208,13 @@ namespace CC9
                 return node;
             }
 
+            // そうでなければ識別子
+            if (token.kind == TokenKind.TK_IDENT) {
+                Node node = new_node(NodeKind.ND_LVAR);
+                node.offset = expect_identifer(token,ref curIndex);
+                return node;
+            }
+
             // そうでなければ数値のはず
             //return new_node_num(expect_number(token,ref curIndex));
             return new_num(expect_number(token,ref curIndex));
@@ -312,8 +279,8 @@ namespace CC9
             /// <returns>bool</returns>
         static  void expect(Token token,string op, ref int next) {
             if (token.kind != TokenKind.TK_RESERVED || op.Length  != token.len ||  token.str != op){
-                       // Console.WriteLine($"{op}ではありません");
-                    }
+                       Console.WriteLine($"{op}ではありません\n");
+            }
             next = token.next;
         }
 
@@ -321,13 +288,24 @@ namespace CC9
         // それ以外の場合にはエラーを報告する。
         static int expect_number(Token token, ref int next) {
             if (token.kind != TokenKind.TK_NUM){
-                //Console.WriteLine($"数ではありません");
+                Console.WriteLine($"数ではありません\n");
             }
             int val = token.val;
             next = token.next;
             return val;
         }
 
+        // 次のトークンが識別子の場合、トークンを1つ読み進めてそのオフセット値を返す。
+        // それ以外の場合にはエラーを報告する。
+        static int expect_identifer(Token token, ref int next) {
+            if (token.kind != TokenKind.TK_IDENT){
+                Console.WriteLine($"識別子ではありません\n");
+            }
+            Char ident =char.Parse(token.str);
+            var offset = ( ident - 'a' + 1) * 8;
+            next = token.next;
+            return offset;
+        }
         // エラーを報告するための関数
         static void error(string fmt) {
             Console.WriteLine(fmt);
@@ -361,7 +339,6 @@ namespace CC9
                 return false;
             }       
         }
-
         static bool iscomparison ( string input )
         {
             if(input =="=="||input =="!="||input =="<="||input ==">="){
@@ -370,10 +347,29 @@ namespace CC9
                 return false;
             }       
         }
-
+        static bool isassign ( string input )
+        {
+            if(input =="="){
+                return true;
+            }else{
+                return false;
+            }       
+        }
         static bool isdigit( string input )
         {
             return Regex.IsMatch( input, "[0-9]" );
+        }
+        static bool isidentfer( string input )
+        {
+            return Regex.IsMatch( input, "[a-z]" );
+        }
+        static bool isterminater( string input )
+        {
+            if(input ==";"){
+                return true;
+            }else{
+                return false;
+            }    
         }
         static int strtol(string str){
             return  int.Parse(str);
